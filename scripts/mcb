@@ -9,7 +9,7 @@ usage() {
   cat <<EOF
 Markdown Course Builder (mcb)
 
-Usage: mcb <command> [args]
+Usage: mcb <command> [args]  # run from repo root
 
 Commands:
   init <title>                 Initialize course.yaml and content/
