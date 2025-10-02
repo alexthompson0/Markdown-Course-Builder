@@ -28,3 +28,7 @@ This is a personal, nights-and-weekends build. No runtime required — it focuse
 
 No build required. Scripts are POSIX shell and safe to read.
 
+
+## Exporting
+
+See ./scripts/mcb export to concatenate lessons.

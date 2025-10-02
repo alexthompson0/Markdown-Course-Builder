@@ -6,4 +6,4 @@ duration: 5
 
 # Editors and Previewing
 
-Write notes here.
+Write notes here. Add a screenshot reference later.
