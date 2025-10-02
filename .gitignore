@@ -1,0 +1,12 @@
+.claude
+node_modules
+CLAUDE.md
+dist
+.DS_Store
+AGENTS.md
+coverage
+.env
+tmp
+.pytest_cache
+*.log
+export.md
