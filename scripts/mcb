@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+COURSE_YAML="$ROOT_DIR/course.yaml"
+CONTENT_DIR="$ROOT_DIR/content"
+
+usage() {
+  cat <<EOF
+Markdown Course Builder (mcb)
+
+Usage: mcb <command> [args]
+
+Commands:
+  init <title>                 Initialize course.yaml and content/
+  add-module <name>            Create a module folder (slugged)
+  add-lesson <module> <title>  Create a lesson .md in module
+  gen-toc                      Generate TOC.md from course.yaml and content
+  export [modules..]           Concatenate lessons into export.md (stdout)
+  help                         Show this help
+EOF
+}
+
+slugify() {
+  # lowercase, spaces->-, remove non-url chars
+  echo "$*" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'
+}
+
+ensure_init() {
+  if [ ! -f "$COURSE_YAML" ]; then
+    echo "course.yaml not found. Run: mcb init \"<title>\"" >&2
+    exit 1
+  fi
+}
+
+cmd_init() {
+  local title=${1:-}
+  if [ -z "$title" ]; then echo "Title required" >&2; exit 1; fi
+  mkdir -p "$CONTENT_DIR"
+  if [ ! -f "$COURSE_YAML" ]; then
+    cat > "$COURSE_YAML" <<YAML
+title: "$title"
+description: ""
+modules: []
+YAML
+    echo "Initialized $COURSE_YAML"
+  else
+    echo "Already initialized: $COURSE_YAML" >&2
+  fi
+}
+
+cmd_add_module() {
+  ensure_init
+  local name=${1:-}
+  [ -z "$name" ] && { echo "Module name required" >&2; exit 1; }
+  local slug; slug=$(slugify "$name")
+  mkdir -p "$CONTENT_DIR/$slug"
+  # ensure modules key exists
+  if ! grep -q '^modules:' "$COURSE_YAML"; then
+    printf "\nmodules:\n" >> "$COURSE_YAML"
+  fi
+  # append slug if not present already
+  if ! grep -E -q "^-[[:space:]]+$slug$" "$COURSE_YAML"; then
+    printf -- "- %s\n" "$slug" >> "$COURSE_YAML"
+  fi
+  echo "$slug" > "$CONTENT_DIR/$slug/.module"
+  echo "Added module: $slug"
+}
+
+cmd_add_lesson() {
+  ensure_init
+  local module=${1:-}
+  local title=${2:-}
+  [ -z "$module" ] && { echo "Module slug required" >&2; exit 1; }
+  [ -z "$title" ] && { echo "Lesson title required" >&2; exit 1; }
+  local slug; slug=$(slugify "$title")
+  local dir="$CONTENT_DIR/$module"
+  [ -d "$dir" ] || { echo "Unknown module: $module" >&2; exit 1; }
+  local file="$dir/$slug.md"
+  if [ -f "$file" ]; then echo "Lesson exists: $file" >&2; exit 1; fi
+  cat > "$file" <<MD
+---
+title: "$title"
+summary: ""
+duration: 5
+---
+
+# $title
+
+Write notes here.
+MD
+  echo "Created lesson: $file"
+}
+
+cmd_gen_toc() {
+  ensure_init
+  local toc="$ROOT_DIR/TOC.md"
+  {
+    echo "# Table of Contents"
+    echo
+    echo "Course: $(sed -n 's/^title: \"\(.*\)\"/\1/p' "$COURSE_YAML")"
+    echo
+    for m in $(sed -n 's/^- \(.*\)$/\1/p' "$COURSE_YAML"); do
+      [ -d "$CONTENT_DIR/$m" ] || continue
+      echo "- ${m}"
+      for f in "$CONTENT_DIR/$m"/*.md; do
+        [ -f "$f" ] || continue
+        t=$(sed -n 's/^title: \"\(.*\)\"/\1/p' "$f" | head -1)
+        [ -z "$t" ] && t=$(basename "$f")
+        echo "  - $t"
+      done
+    done
+  } > "$toc"
+  echo "Wrote $toc"
+}
+
+cmd_export() {
+  ensure_init
+  shift 0
+  local modules=("$@")
+  if [ ${#modules[@]} -eq 0 ]; then
+    # default to all listed
+    mapfile -t modules < <(sed -n 's/^- \(.*\)$/\1/p' "$COURSE_YAML")
+  fi
+  for m in "${modules[@]}"; do
+    for f in "$CONTENT_DIR/$m"/*.md; do
+      [ -f "$f" ] || continue
+      echo
+      echo "<!-- $m/$(basename "$f") -->"
+      sed '1,/^---$/d' "$f" | sed '1,/^---$/d'
+    done
+  done
+}
+
+case "${1:-}" in
+  init) shift; cmd_init "$@" ;;
+  add-module) shift; cmd_add_module "$@" ;;
+  add-lesson) shift; cmd_add_lesson "$@" ;;
+  gen-toc) shift; cmd_gen_toc "$@" ;;
+  export) shift; cmd_export "$@" ;;
+  help|--help|-h|"") usage ;;
+  *) echo "Unknown command: $1" >&2; usage; exit 1 ;;
+esac
