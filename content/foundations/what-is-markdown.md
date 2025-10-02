@@ -1,7 +1,7 @@
 ---
 title: "What is Markdown?"
-summary: ""
-duration: 5
+summary: "Overview of the syntax and use-cases"
+duration: 7
 ---
 
 # What is Markdown?
